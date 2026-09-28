@@ -1,0 +1,11 @@
+{
+  "name": "buildpay-portal-enhancements",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "start": "node scripts/serve.cjs",
+    "test": "node --test tests/workflow.test.cjs",
+    "test:fixtures": "node tests/fixture-server.cjs",
+    "test:browser": "node tests/interactions.cjs && node tests/payment-actions.cjs"
+  }
+}
