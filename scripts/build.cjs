@@ -34,7 +34,7 @@ for (const [name, data, opener, allowed] of [
   const beforeReturn = bundle.indexOf(';return g.jsxDEV(', begin);
   const marker = `/* BP_OPEN_${name} */`;
   if (!bundle.slice(begin, beforeReturn + 1000).includes(marker)) {
-    const hook = `;${marker}const bpOpened=D.useRef(false);D.useEffect(()=>{if(bpOpened.current)return;${name === 'iH' ? 'if(openCreate){bpOpened.current=true;B();return;}' : ''}const record=${allowed}.find(item=>item.id===selectedId);if(record){bpOpened.current=true;${opener}(record)}},[selectedId,openCreate,${data}])`;
+    const hook = `;${marker}const bpOpened=D.useRef(false);D.useEffect(()=>{if(bpOpened.current)return;${name === 'iH' ? 'if(openCreate){bpOpened.current=true;B();return;}' : ''}const bpRecords=Array.isArray(${allowed})?${allowed}:[];const record=bpRecords.find(item=>item?.id===selectedId);if(record){bpOpened.current=true;${opener}(record)}},[selectedId,openCreate,${data}])`;
     bundle = bundle.slice(0, beforeReturn) + hook + bundle.slice(beforeReturn);
   }
 }
