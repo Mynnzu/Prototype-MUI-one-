@@ -1,0 +1,100 @@
+<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26091.152" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26091.00152">
+  <Entities></Entities>
+  <Roles></Roles>
+  <Workflows></Workflows>
+  <FieldSecurityProfiles></FieldSecurityProfiles>
+  <Templates />
+  <EntityMaps />
+  <EntityRelationships />
+  <OrganizationSettings />
+  <optionsets />
+  <CustomControls />
+  <AppModuleSiteMaps>
+    <AppModuleSiteMap>
+      <SiteMapUniqueName>cr44f_test1</SiteMapUniqueName>
+      <EnableCollapsibleGroups>False</EnableCollapsibleGroups>
+      <ShowHome>True</ShowHome>
+      <ShowPinned>True</ShowPinned>
+      <ShowRecents>True</ShowRecents>
+      <SiteMap IntroducedVersion="7.0.0.0">
+        <Area Id="area_2403347c" ResourceId="SitemapDesigner.NewTitle" DescriptionResourceId="SitemapDesigner.NewTitle" ShowGroups="true" IntroducedVersion="7.0.0.0">
+          <Titles>
+            <Title LCID="1033" Title="Area1" />
+          </Titles>
+        </Area>
+      </SiteMap>
+      <LocalizedNames>
+        <LocalizedName description="test1" languagecode="1033" />
+      </LocalizedNames>
+    </AppModuleSiteMap>
+  </AppModuleSiteMaps>
+  <AppModules>
+    <AppModule>
+      <UniqueName>cr44f_test1</UniqueName>
+      <IntroducedVersion>1.0.0.0</IntroducedVersion>
+      <WebResourceId>953b9fac-1e5e-e611-80d6-00155ded156f</WebResourceId>
+      <OptimizedFor></OptimizedFor>
+      <statecode>0</statecode>
+      <statuscode>1</statuscode>
+      <FormFactor>1</FormFactor>
+      <ClientType>4</ClientType>
+      <NavigationType>0</NavigationType>
+      <AppModuleComponents>
+        <AppModuleComponent type="62" schemaName="cr44f_test1" />
+      </AppModuleComponents>
+      <AppModuleRoleMaps>
+        <Role id="{627090ff-40a3-4053-8790-584edc5be201}" />
+        <Role id="{119f245c-3cc8-4b62-b31c-d1a046ced15d}" />
+      </AppModuleRoleMaps>
+      <LocalizedNames>
+        <LocalizedName description="test1" languagecode="1033" />
+      </LocalizedNames>
+      <appsettings>
+        <appsetting settingdefinitionid.uniquename="AppChannel">
+          <iscustomizable>1</iscustomizable>
+          <value>1</value>
+        </appsetting>
+      </appsettings>
+    </AppModule>
+  </AppModules>
+  <EntityDataProviders />
+  <CanvasApps>
+    <CanvasApp>
+      <Name>cr44f_buildpayenterpriseportal_81f53</Name>
+      <AppVersion>2026-09-25T09:44:33Z</AppVersion>
+      <Status>Ready</Status>
+      <CreatedByClientVersion>0.0.0.0</CreatedByClientVersion>
+      <MinClientVersion>0.0.0.0</MinClientVersion>
+      <Tags>{"planId":"","projectId":"cde78481-4b66-4238-880d-fae793af6f2c"}</Tags>
+      <IsCdsUpgraded>0</IsCdsUpgraded>
+      <GalleryItemId xsi:nil="true"></GalleryItemId>
+      <BackgroundColor>RGBA(255,255,255,1)</BackgroundColor>
+      <DisplayName>BuildPay Enterprise Portal</DisplayName>
+      <Description>Contractor dashboard for tracking payment applications, approval lifecycles, financial realization, and statutory deadlines.</Description>
+      <CommitMessage xsi:nil="true"></CommitMessage>
+      <Publisher xsi:nil="true"></Publisher>
+      <AuthorizationReferences>[]</AuthorizationReferences>
+      <ConnectionReferences>{}</ConnectionReferences>
+      <DatabaseReferences>{"default.cds":{"databaseDetails":{"referenceType":"NotSpecified","environmentName":"default.cds"},"dataSources":{"cr44f_paymentapplication1":{"entitySetName":"cr44f_paymentapplication1s","logicalName":"cr44f_paymentapplication1"},"cr44f_paymentauditlog":{"entitySetName":"cr44f_paymentauditlogs","logicalName":"cr44f_paymentauditlog"},"cr44f_paymentvaluationline":{"entitySetName":"cr44f_paymentvaluationlines","logicalName":"cr44f_paymentvaluationline"},"cr44f_paymentdisbursement":{"entitySetName":"cr44f_paymentdisbursements","logicalName":"cr44f_paymentdisbursement"},"cr44f_reviewattachment":{"entitySetName":"cr44f_reviewattachments","logicalName":"cr44f_reviewattachment"},"cr44f_paymentdisbursementaccountingdetail":{"entitySetName":"cr44f_paymentdisbursementaccountingdetails","logicalName":"cr44f_paymentdisbursementaccountingdetail"},"cr44f_project":{"entitySetName":"cr44f_projects","logicalName":"cr44f_project"},"cr44f_contractpackage":{"entitySetName":"cr44f_contractpackages","logicalName":"cr44f_contractpackage"},"cr44f_projectparty":{"entitySetName":"cr44f_projectparties","logicalName":"cr44f_projectparty"},"cr44f_contract1":{"entitySetName":"cr44f_contract1s","logicalName":"cr44f_contract1"},"cr44f_applicationrevision":{"entitySetName":"cr44f_applicationrevisions","logicalName":"cr44f_applicationrevision"}}}}</DatabaseReferences>
+      <AppComponents>[]</AppComponents>
+      <AppComponentDependencies>[]</AppComponentDependencies>
+      <CanConsumeAppPass>1</CanConsumeAppPass>
+      <CanvasAppType>4</CanvasAppType>
+      <BypassConsent>0</BypassConsent>
+      <AdminControlBypassConsent>0</AdminControlBypassConsent>
+      <EmbeddedApp xsi:nil="true"></EmbeddedApp>
+      <IntroducedVersion>1.0</IntroducedVersion>
+      <CdsDependencies>{"cdsdependencies":[{"logicalname":"cr44f_paymentapplication1","componenttype":1},{"logicalname":"cr44f_paymentauditlog","componenttype":1},{"logicalname":"cr44f_paymentvaluationline","componenttype":1},{"logicalname":"cr44f_paymentdisbursement","componenttype":1},{"logicalname":"cr44f_reviewattachment","componenttype":1},{"logicalname":"cr44f_paymentdisbursementaccountingdetail","componenttype":1},{"logicalname":"cr44f_project","componenttype":1},{"logicalname":"cr44f_contractpackage","componenttype":1},{"logicalname":"cr44f_projectparty","componenttype":1},{"logicalname":"cr44f_contract1","componenttype":1},{"logicalname":"cr44f_applicationrevision","componenttype":1}]}</CdsDependencies>
+      <IsCustomizable>1</IsCustomizable>
+      <CodeAppPackageUris>
+        <CodeAppPackageUri>/CanvasApps/cr44f_buildpayenterpriseportal_81f53_CodeAppPackages/index.html_ContentType_text/html</CodeAppPackageUri>
+        <CodeAppPackageUri>/CanvasApps/cr44f_buildpayenterpriseportal_81f53_CodeAppPackages/assets/index-CN98kS3T.css_ContentType_text/css</CodeAppPackageUri>
+        <CodeAppPackageUri>/CanvasApps/cr44f_buildpayenterpriseportal_81f53_CodeAppPackages/assets/index-Cum7pg08.js_ContentType_application/javascript</CodeAppPackageUri>
+        <CodeAppPackageUri>/CanvasApps/cr44f_buildpayenterpriseportal_81f53_CodeAppPackages/favicon.ico_ContentType_image/x-icon</CodeAppPackageUri>
+      </CodeAppPackageUris>
+    </CanvasApp>
+  </CanvasApps>
+  <Languages>
+    <Language>1033</Language>
+  </Languages>
+</ImportExportXml>
