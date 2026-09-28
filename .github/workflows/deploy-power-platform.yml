@@ -1,0 +1,36 @@
+name: Deploy Power Platform Solution
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Pack solution
+        uses: microsoft/powerplatform-actions/pack-solution@v1
+        with:
+          solution-folder: src/GitHubProject2
+          solution-file: out/GitHubProject2.zip
+          solution-type: Unmanaged
+
+      - name: Import solution
+        uses: microsoft/powerplatform-actions/import-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_ENVIRONMENT_URL }}
+          app-id: ${{ secrets.POWERPLATFORM_APP_ID }}
+          client-secret: ${{ secrets.POWERPLATFORM_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.POWERPLATFORM_TENANT_ID }}
+          solution-file: out/GitHubProject2.zip
+          force-overwrite: true
+          publish-changes: true
