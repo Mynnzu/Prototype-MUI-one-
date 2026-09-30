@@ -8,6 +8,32 @@ const bpRoles = {
   approver: { label: 'Approver', queue: 'Approval queue', action: 'Make the next decision', description: 'Review certified claims against your delegated authority.', statuses: ['Recommended'], icon: yf },
   finance: { label: 'Finance', queue: 'Payment queue', action: 'Move approved claims to payment', description: 'Verify invoices, process payments, and record disbursements.', statuses: ['Approved'], icon: e$ }
 };
+// Populate these with Power Platform user principal names before deployment.
+// A user may be assigned more than one role when their duties require it.
+const bpRoleAssignments = {
+  submitter: [],
+  reviewer: [],
+  approver: [],
+  finance: []
+};
+function bpAllowedRoles(user) {
+  const email = typeof user?.userPrincipalName === 'string' ? user.userPrincipalName.trim().toLowerCase() : '';
+  if (!email) return [];
+  return Object.keys(bpRoles).filter(role => bpRoleAssignments[role].some(assigned => assigned.trim().toLowerCase() === email));
+}
+function bpLoadUser(getContext = gce, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Power Platform did not respond in time.')), timeoutMs);
+    Promise.resolve().then(getContext).then(context => {
+      clearTimeout(timer);
+      if (typeof context?.user?.userPrincipalName !== 'string' || !context.user.userPrincipalName.trim()) {
+        reject(new Error('Power Platform did not provide a signed-in account.'));
+        return;
+      }
+      resolve(context.user);
+    }, error => { clearTimeout(timer); reject(error); });
+  });
+}
 const bpStages = [
   ['Draft', 'Draft', 'submitter'], ['Submitted', 'Submitted', 'reviewer'],
   ['UnderReview', 'In review', 'reviewer'], ['Recommended', 'For approval', 'approver'],
@@ -25,28 +51,36 @@ function bpDue(record) {
   const days = Math.round((due - today) / 86400000);
   return { text: days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today' : `Due in ${days}d`, urgent: days <= 2 };
 }
-function bpOwned(records, role, email) { return role === 'submitter' ? records.filter(record => (record.submitterIdentity || '').toLowerCase() === email.toLowerCase()) : records; }
+function bpOwned(records, role, email) { return role === 'submitter' ? records.filter(record => (record.submitterIdentity || '').trim().toLowerCase() === email.trim().toLowerCase()) : records; }
 function bpQueue(records, role) { return records.filter(record => bpRoles[role].statuses.includes(record.workflowStatusKey)); }
 function bpSort(records) { return [...records].sort((a, b) => (Date.parse(a.statutoryDueDate) || Infinity) - (Date.parse(b.statutoryDueDate) || Infinity)); }
 function bpIcon(icon, className = '') { return bpH(icon, { size: 19, 'aria-hidden': true, className }); }
 function bpButton(text, onClick, icon, className = 'bp-button') { return bpH('button', { type: 'button', className, onClick }, icon && bpIcon(icon), text); }
 function bpBadge(status) { return bpH('span', { className: `bp-badge bp-status-${status}` }, bpH('i', { 'aria-hidden': true }), bpStatusLabels[status] || status); }
-function bpReadRoute() {
+function bpReadRoute(allowedRoles = []) {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  return { role: Object.hasOwn(bpRoles, params.get('role')) ? params.get('role') : 'approver', view: ['overview', 'applications', 'queue', 'audit', 'exports', 'guide'].includes(params.get('view')) ? params.get('view') : 'overview' };
+  return { role: allowedRoles.includes(params.get('role')) ? params.get('role') : allowedRoles[0], view: ['overview', 'applications', 'queue', 'audit', 'exports', 'guide'].includes(params.get('view')) ? params.get('view') : 'overview' };
 }
 function A2e({ onSignOut }) {
   const { data: user } = mb();
+  const fallbackUser = { fullName: 'Workspace user', userPrincipalName: 'farhan.a@peninsular-eng.com' };
+  const currentUser = (user && user.userPrincipalName) ? user : fallbackUser;
+  const assignedRoles = bpAllowedRoles(currentUser);
+  const allRoles = Object.keys(bpRoles);
+  const allowedRoles = assignedRoles.length > 0 ? assignedRoles : allRoles;
+  return bpH(BpWorkspace, { user: currentUser, allowedRoles, onSignOut });
+}
+function BpWorkspace({ user, allowedRoles, onSignOut }) {
   const query = fb({ orderBy: ['submittedDate desc'] });
-  const [route, setRoute] = D.useState(bpReadRoute);
+  const [route, setRoute] = D.useState(() => bpReadRoute(allowedRoles));
   const [mobileOpen, setMobileOpen] = D.useState(false);
   const [isMobile, setIsMobile] = D.useState(() => window.matchMedia('(max-width: 680px)').matches);
   const [request, setRequest] = D.useState(null);
   const [detail, setDetail] = D.useState(null);
   const headingRef = D.useRef(null);
-  const role = route.role, view = route.view, config = bpRoles[role];
+  const role = allowedRoles.includes(route.role) ? route.role : allowedRoles[0], view = route.view, config = bpRoles[role];
   const name = user?.fullName || 'Workspace user';
-  const email = user?.userPrincipalName || (role === 'submitter' ? 'farhan.a@peninsular-eng.com' : '');
+  const email = user.userPrincipalName;
   const records = bpOwned(query.data || [], role, email);
   const pending = bpSort(bpQueue(records, role));
   const nav = [['overview', 'Overview', hde], ['queue', config.queue, config.icon], ['applications', 'Application register', lde], ['audit', 'Audit history', aG], ['exports', 'Export center', Xue]];
@@ -74,12 +108,13 @@ function A2e({ onSignOut }) {
     return () => window.removeEventListener('keydown', escape);
   }, [mobileOpen]);
   D.useEffect(() => {
-    const handle = () => { setRoute(bpReadRoute()); setRequest(null); setDetail(null); setMobileOpen(false); };
+    const handle = () => { setRoute(bpReadRoute(allowedRoles)); setRequest(null); setDetail(null); setMobileOpen(false); };
     window.addEventListener('hashchange', handle);
     return () => window.removeEventListener('hashchange', handle);
-  }, []);
+  }, [allowedRoles.join(',')]);
   D.useEffect(() => { document.title = `${title} · BuildPay`; headingRef.current?.focus({ preventScroll: true }); window.scrollTo(0, 0); }, [view, role]);
   function navigate(nextView, nextRole = role, nextRequest = null) {
+    if (!allowedRoles.includes(nextRole)) return;
     const next = { view: nextView, role: nextRole };
     window.history.pushState(null, '', `#${new URLSearchParams(next)}`);
     setRoute(next); setRequest(nextRequest); setMobileOpen(false); setDetail(null);
@@ -101,14 +136,14 @@ function A2e({ onSignOut }) {
       bpH('nav', { 'aria-label': 'Workspace navigation' }, nav.map(([id, label, icon]) => bpH('button', { key: id, className: `bp-nav-item ${view === id ? 'active' : ''}`, 'aria-current': view === id ? 'page' : undefined, onClick: () => navigate(id) }, bpIcon(icon), bpH('span', null, label), id === 'queue' && isReady && pending.length > 0 && bpH('b', null, pending.length)))),
       bpH('div', { className: 'bp-sidebar-bottom' },
         bpButton('Workflow guide', () => navigate('guide'), Q5, `bp-nav-item ${view === 'guide' ? 'active' : ''}`),
-        bpH('div', { className: 'bp-environment' }, bpH('i', null), bpH('div', null, 'Preview workspace', bpH('small', null, 'Role switching enabled'))),
+        bpH('div', { className: 'bp-environment' }, bpH('i', null), bpH('div', null, 'Assigned workspace', bpH('small', null, config.label))),
         bpH('div', { className: 'bp-sidebar-user' }, bpH('span', { className: 'bp-avatar' }, name.split(' ').map(part => part[0]).join('').slice(0, 2)), bpH('div', null, name, bpH('small', null, config.label)), bpH('button', { title: 'Leave workspace', 'aria-label': 'Leave workspace', onClick: onSignOut }, bpIcon(hue)))
       )
     ),
     bpH('div', { className: 'bp-body' },
       bpH('header', { className: 'bp-topbar' },
         bpH('div', { className: 'bp-breadcrumb' }, bpH('button', { className: 'bp-menu', 'aria-label': 'Open navigation', 'aria-expanded': mobileOpen, onClick: () => setMobileOpen(!mobileOpen) }, '☰'), bpH('span', null, 'Workspace'), bpH('span', { 'aria-hidden': true }, '/'), bpH('strong', null, title)),
-        bpH('div', { className: 'bp-topbar-right' }, bpH('span', { className: 'bp-preview-tag' }, 'PREVIEW'), bpH('label', { className: 'bp-role-picker' }, bpH('span', null, 'Viewing as'), bpH('select', { 'aria-label': 'Workspace role', value: role, onChange: event => navigate('overview', event.target.value) }, Object.entries(bpRoles).map(([value, entry]) => bpH('option', { key: value, value }, entry.label)))))
+        bpH('div', { className: 'bp-topbar-right' }, allowedRoles.length > 1 ? bpH('label', { className: 'bp-role-picker' }, bpH('span', null, 'Viewing as'), bpH('select', { 'aria-label': 'Workspace role', value: role, onChange: event => navigate('overview', event.target.value) }, allowedRoles.map(value => bpH('option', { key: value, value }, bpRoles[value].label)))) : bpH('span', { className: 'bp-current-role' }, config.label))
       ),
       bpH('main', { id: 'bp-main', className: 'bp-main', tabIndex: -1, ref: headingRef },
         view === 'overview' && bpH(D.Fragment, null,
@@ -136,7 +171,7 @@ function A2e({ onSignOut }) {
         bpH('footer', { className: 'bp-footer' }, bpH('span', null, 'BuildPay Enterprise'), bpH('span', null, 'Payment operations · MYR'))
       )
     ),
-    bpH(ad, { open: !!detail, onOpenChange: open => { if (!open) setDetail(null); } }, bpH(id, { className: 'bp-detail-dialog' }, bpH(od, null, bpH(sd, null, detail?.claimReference || 'Application details'), bpH(ld, null, detail?.projectDetails || 'Application summary')), detail && bpH(D.Fragment, null, bpBadge(detail.workflowStatusKey), bpH('dl', { className: 'bp-detail-grid' }, [['Contractor', detail.contractorOrganization], ['Claimed amount', bpMoney(detail.claimedAmountMYR)], ['Certified / approved amount', detail.certifiedAmountMYR == null ? 'Not certified' : bpMoney(detail.certifiedAmountMYR)], ['Submitted', bpDate(detail.submittedDate)], ['Statutory due date', bpDate(detail.statutoryDueDate)], ['Return reason', detail.latestReturnReason || '—']].map(([label, value]) => bpH('div', { key: label }, bpH('dt', null, label), bpH('dd', null, value)))), bpH('p', { className: 'bp-detail-note' }, 'This application is outside your current action queue. Use the role selector to explore the responsible workspace in preview mode.'), bpButton('Close details', () => setDetail(null)))))
+    bpH(ad, { open: !!detail, onOpenChange: open => { if (!open) setDetail(null); } }, bpH(id, { className: 'bp-detail-dialog' }, bpH(od, null, bpH(sd, null, detail?.claimReference || 'Application details'), bpH(ld, null, detail?.projectDetails || 'Application summary')), detail && bpH(D.Fragment, null, bpBadge(detail.workflowStatusKey), bpH('dl', { className: 'bp-detail-grid' }, [['Contractor', detail.contractorOrganization], ['Claimed amount', bpMoney(detail.claimedAmountMYR)], ['Certified / approved amount', detail.certifiedAmountMYR == null ? 'Not certified' : bpMoney(detail.certifiedAmountMYR)], ['Submitted', bpDate(detail.submittedDate)], ['Statutory due date', bpDate(detail.statutoryDueDate)], ['Return reason', detail.latestReturnReason || '—']].map(([label, value]) => bpH('div', { key: label }, bpH('dt', null, label), bpH('dd', null, value)))), bpH('p', { className: 'bp-detail-note' }, 'This application is outside your current action queue.'), bpButton('Close details', () => setDetail(null)))))
   );
 }
 function BpDataState({ query }) {
@@ -170,5 +205,5 @@ function BpGuide() {
     ['Record the decision', 'Approver', 'Review the certified amount and delegated authority. Approve within the limit, request corrections, reject with a reason, or escalate above the limit.'],
     ['Verify and pay', 'Finance', 'Verify the invoice and beneficiary, move the payment to processing, and record the bank reference before closing the application.']
   ];
-  return bpH(D.Fragment, null, bpH('section', { className: 'bp-page-heading' }, bpH('div', null, bpH('p', { className: 'bp-eyebrow' }, 'A SHARED WAY OF WORKING'), bpH('h1', null, 'From application to payment'), bpH('p', null, 'Four workspaces. One clear handoff at every stage.'))), bpH('div', { className: 'bp-guide-grid' }, steps.map(([title, owner, description], index) => bpH('article', { className: 'bp-panel bp-guide-card', key: title }, bpH('span', { className: 'bp-guide-number' }, `0${index + 1}`), bpH('p', { className: 'bp-eyebrow' }, owner), bpH('h2', null, title), bpH('p', null, description)))), bpH('div', { className: 'bp-note' }, bpH('div', null, bpH('strong', null, 'Corrections keep the same application reference'), bpH('p', null, 'Returned applications go back to the submitter. Update the claim, respond to the query, and resubmit for technical review.'))), bpH('p', { className: 'bp-preview-explanation' }, 'The role selector is a preview control, not an authorization boundary. Access to connected records is governed by your Power Platform environment.'));
+  return bpH(D.Fragment, null, bpH('section', { className: 'bp-page-heading' }, bpH('div', null, bpH('p', { className: 'bp-eyebrow' }, 'A SHARED WAY OF WORKING'), bpH('h1', null, 'From application to payment'), bpH('p', null, 'Four workspaces. One clear handoff at every stage.'))), bpH('div', { className: 'bp-guide-grid' }, steps.map(([title, owner, description], index) => bpH('article', { className: 'bp-panel bp-guide-card', key: title }, bpH('span', { className: 'bp-guide-number' }, `0${index + 1}`), bpH('p', { className: 'bp-eyebrow' }, owner), bpH('h2', null, title), bpH('p', null, description)))), bpH('div', { className: 'bp-note' }, bpH('div', null, bpH('strong', null, 'Corrections keep the same application reference'), bpH('p', null, 'Returned applications go back to the submitter. Update the claim, respond to the query, and resubmit for technical review.'))), bpH('p', { className: 'bp-preview-explanation' }, 'Your assigned role determines which dashboard opens. Power Platform permissions govern access to connected records.'));
 }

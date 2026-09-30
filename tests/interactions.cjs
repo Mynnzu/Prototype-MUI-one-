@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 (async () => {
   const b = await connect();
   const click = text => b.evaluate(`(()=>{const button=[...document.querySelectorAll('button')].find(item=>item.textContent.trim()===${JSON.stringify(text)});if(!button)throw new Error('Button not found: '+${JSON.stringify(text)});button.click()})()`);
+  const setInput = (selector, value) => b.evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+  const inputValue = selector => b.evaluate(`document.querySelector(${JSON.stringify(selector)}).value`);
   const selectRole = role => b.evaluate(`(()=>{const select=document.querySelector('[aria-label="Workspace role"]');select.value=${JSON.stringify(role)};select.dispatchEvent(new Event('change',{bubbles:true}))})()`);
   const closeDialog = async () => { await b.evaluate(`document.querySelector('[role="dialog"] button[data-slot="dialog-close"]')?.click()`); await b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await b.until('!document.querySelector(\'[role="dialog"]\')'); };
   try {
@@ -31,6 +33,16 @@ const assert = require('node:assert/strict');
     await selectRole('submitter'); await b.until("document.querySelector('.bp-count')?.textContent==='2 pending'");
     await click('New application'); await b.until("document.querySelector('[role=dialog]')");
     console.log('CREATE DIALOG', (await b.evaluate("document.querySelector('[role=dialog]').innerText")).slice(0, 1500));
+    await setInput('[placeholder="Enter project name or code"]', 'test3333');
+    await setInput('[placeholder="Enter contractor name"]', 'Sample Contractor');
+    assert.equal(await inputValue('[placeholder="Enter contractor name"]'), 'Sample Contractor', 'Unmatched contractor text remains editable');
+    await setInput('[placeholder="Enter project name or code"]', 'Meridian Business Park');
+    await setInput('[placeholder="Enter contractor name"]', 'Peninsular Engineering');
+    await setInput('[placeholder="Enter contract number"]', 'CON-001');
+    await setInput('[placeholder="Enter package code"]', 'PKG-001');
+    for (const [placeholder, expected] of [['Enter contractor name', 'Peninsular Engineering'], ['Enter contract number', 'CON-001'], ['Enter package code', 'PKG-001']]) {
+      assert.equal(await inputValue(`[placeholder="${placeholder}"]`), expected, `${placeholder} retains typed text`);
+    }
     await closeDialog();
     await selectRole('reviewer'); await b.until("document.querySelector('.bp-count')?.textContent==='3 pending'");
     await click('PA-2026-003'); await b.until("document.querySelector('[role=dialog]')");

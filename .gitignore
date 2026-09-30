@@ -1,3 +1,4 @@
 .tools/
 .artifacts/
 node_modules/
+.vscode/

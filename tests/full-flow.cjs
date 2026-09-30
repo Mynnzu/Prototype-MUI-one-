@@ -1,0 +1,130 @@
+const { connect } = require('./browser.cjs');
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+
+(async () => {
+  const fixtureUrl = process.env.BP_FLOW_FIXTURE_URL || 'http://127.0.0.1:4174/';
+  const file = path.resolve('.artifacts/full-flow-evidence.pdf');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, '%PDF-1.4\nFixture evidence for the payment workflow.\n');
+  const browser = await connect();
+  const click = label => browser.evaluate(`(()=>{const button=[...document.querySelectorAll('button')].find(item=>item.textContent.trim()===${JSON.stringify(label)});if(!button)throw new Error('Button not found: ${label}');button.click()})()`);
+  const setInput = (selector, value) => browser.evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});if(!input)throw new Error('Input not found: ${selector}');const prototype=input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+  const selectRole = role => browser.evaluate(`(()=>{const select=document.querySelector('[aria-label="Workspace role"]');select.value=${JSON.stringify(role)};select.dispatchEvent(new Event('change',{bubbles:true}))})()`);
+  const chooseDate = async (buttonIndex, label) => {
+    await browser.evaluate(`([...document.querySelectorAll('[role=dialog] button')].filter(item=>item.textContent.trim()==='Pick a date')[${buttonIndex}]).click()`);
+    await browser.until(`document.querySelector('[data-slot=popover-content][data-state=open] button[aria-label=${JSON.stringify(label)}]')`);
+    await browser.evaluate(`document.querySelector('[data-slot=popover-content][data-state=open] button[aria-label=${JSON.stringify(label)}]').click()`);
+  };
+  const attach = async () => {
+    const { root } = await browser.send('DOM.getDocument');
+    const { nodeId } = await browser.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[role=dialog] input[type=file]' });
+    assert.ok(nodeId);
+    await browser.send('DOM.setFileInputFiles', { nodeId, files: [file] });
+  };
+  try {
+    await browser.send('Page.navigate', { url: fixtureUrl });
+    await browser.until("document.querySelector('.bp-login-card')");
+    await browser.evaluate("Object.keys(localStorage).filter(key=>key.startsWith('buildpay-')).forEach(key=>localStorage.removeItem(key))");
+    await click('Enter workspace');
+    await browser.until("document.querySelector('[aria-label=\"Workspace role\"]')");
+    await selectRole('submitter');
+    await browser.until("document.querySelector('.bp-count')?.textContent==='2 pending'");
+    await click('New application');
+    await browser.until("document.querySelector('[role=dialog] input[placeholder=\"Enter project name or code\"]')");
+
+    // The project is added after the user has typed it. Save must refresh and
+    // resolve its current record instead of relying on an ID set at keystroke time.
+    await setInput('[placeholder="Enter project name or code"]', 'New Project');
+    await setInput('[placeholder="Enter contractor name"]', 'Acme Builders');
+    await setInput('[placeholder="Enter contract number"]', 'CON-22');
+    await setInput('[placeholder="Enter package code"]', 'PKG-22');
+    await click('Save draft');
+    await browser.until("document.body.innerText.includes('Choose an existing active project by name or code.')");
+    assert.equal(await browser.evaluate('__bpTest.records.length'), 12, 'Typing a project name alone does not create a Dataverse project');
+    await browser.evaluate(`(()=>{
+      __bpTest.projects.push({id:'project-22',projectCode:'NEW',projectName:'New Project',activeStatusKey:'Active'});
+      __bpTest.parties.push({id:'party-22',project:{id:'project-22'},organizationName:'Acme Builders',partyTypeKey:'Contractor',activeStatusKey:'Active'});
+      __bpTest.contracts.push({id:'contract-22',project:{id:'project-22'},contractNumber:'CON-22',activeStatusKey:'Active'});
+      __bpTest.packages.push({id:'package-22',contract:{id:'contract-22'},packageCode:'PKG-22',packageName:'New works',packageContractValue:100000,responsibleQuantitySurveyorName:'QS Test',activeStatusKey:'Active'});
+    })()`);
+    await chooseDate(0, 'Tuesday, September 15th, 2026');
+    await browser.until("[...document.querySelectorAll('[role=dialog] button')].some(item=>item.textContent.trim()==='September 15th, 2026')");
+    await browser.evaluate("[...document.querySelectorAll('[role=dialog] button')].find(item=>item.textContent.trim()==='September 15th, 2026').click()");
+    await browser.until("!document.querySelector('[data-slot=popover-content][data-state=open]')");
+    await chooseDate(0, 'Friday, September 25th, 2026');
+    await browser.until("[...document.querySelectorAll('[role=dialog] button')].some(item=>item.textContent.trim()==='September 25th, 2026')");
+    await setInput('[role=dialog] table tbody tr input:nth-of-type(1)', 'New work');
+    await setInput('[role=dialog] table tbody tr td:nth-child(3) input', '100000');
+    await setInput('[role=dialog] table tbody tr td:nth-child(4) input', '0');
+    await setInput('[role=dialog] table tbody tr td:nth-child(5) input', '25000');
+    await attach();
+    await browser.until("document.querySelector('[role=dialog]')?.innerText.includes('full-flow-evidence.pdf')");
+    await click('Save draft');
+    await browser.until("__bpTest.records.some(record=>record.claimReference==='PA-2026-013' && record.workflowStatusKey==='Draft')");
+    const draft = await browser.evaluate("__bpTest.records.find(record=>record.claimReference==='PA-2026-013')");
+    assert.equal(draft.project.id, 'project-22');
+    assert.equal(draft.contract.id, 'contract-22');
+    assert.equal(draft.contractPackage.id, 'package-22');
+    assert.equal(draft.contractorOrganization, 'Acme Builders');
+    await browser.evaluate("[...document.querySelectorAll('button')].find(item=>item.textContent.includes('PA-2026-013')).click()");
+    await browser.until("document.querySelector('[role=dialog]')?.innerText.includes('full-flow-evidence.pdf')");
+    await click('Submit application');
+    await browser.until("__bpTest.records.some(record=>record.claimReference==='PA-2026-013' && record.workflowStatusKey==='Submitted')");
+    assert.equal((await browser.evaluate("__bpTest.records.find(record=>record.claimReference==='PA-2026-013')")).claimedAmountMYR, 26500);
+    await selectRole('reviewer');
+    await browser.until("document.querySelector('.bp-count')?.textContent==='4 pending'");
+    await browser.evaluate("[...document.querySelectorAll('button')].find(item=>item.textContent.trim()==='PA-2026-013').click()");
+    await browser.until("document.querySelector('[role=dialog]')?.innerText.includes('Required reviewer documents')");
+    await attach();
+    await browser.until("__bpTest.attachments.length===1");
+    for (const [label, count] of [['QS Report', 2], ['Payment Certificate (Architect)', 3]]) {
+      await browser.evaluate("document.querySelectorAll('[role=dialog] [role=combobox]')[1].click()");
+      await browser.until(`[...document.querySelectorAll('[role=option]')].some(item=>item.textContent.trim()===${JSON.stringify(label)})`);
+      await browser.evaluate(`[...document.querySelectorAll('[role=option]')].find(item=>item.textContent.trim()===${JSON.stringify(label)}).click()`);
+      await attach();
+      await browser.until(`__bpTest.attachments.length===${count}`);
+    }
+    await setInput('#review-notes', 'Quantities checked against evidence.');
+    await click('Start technical review');
+    await browser.until("__bpTest.records.some(record=>record.claimReference==='PA-2026-013' && record.workflowStatusKey==='UnderReview')");
+    await browser.until("[...document.querySelectorAll('[role=dialog] button')].some(item=>item.textContent.trim()==='Recommend approval' && !item.disabled)");
+    await click('Recommend approval');
+    await browser.until("__bpTest.records.some(record=>record.claimReference==='PA-2026-013' && record.workflowStatusKey==='Recommended')");
+    assert.equal(await browser.evaluate("new Set(__bpTest.attachments.filter(item=>item.paymentApplication.claimReference==='PA-2026-013').map(item=>item.documentTypeKey)).size"), 3);
+    await selectRole('approver');
+    await browser.until("document.querySelector('.bp-count')?.textContent==='4 pending'");
+    await browser.evaluate("[...document.querySelectorAll('button')].find(item=>item.textContent.trim()==='PA-2026-013').click()");
+    await browser.until("document.querySelector('#approved-amount')");
+    await setInput('#executive-remarks', 'Approved after technical review.');
+    await setInput('#approved-amount', '24000');
+    await click('Accept');
+    await browser.until("__bpTest.records.some(record=>record.claimReference==='PA-2026-013' && record.workflowStatusKey==='Approved')");
+    const approved = await browser.evaluate("__bpTest.records.find(record=>record.claimReference==='PA-2026-013')");
+    assert.equal(approved.claimedAmountMYR, 26500);
+    assert.equal(approved.certifiedAmountMYR, 24000);
+    await selectRole('finance');
+    await browser.until("document.querySelector('.bp-count')?.textContent==='3 pending'");
+    await browser.evaluate("[...document.querySelectorAll('button')].find(item=>item.textContent.trim()==='PA-2026-013').click()");
+    await browser.until("document.querySelector('#gross')");
+    assert.equal(await browser.evaluate("document.querySelector('#gross').value"), '24000');
+    await setInput('#invoice-number', 'INV-22');
+    await chooseDate(0, 'Friday, September 25th, 2026');
+    await browser.until("[...document.querySelectorAll('[role=dialog] button')].some(item=>item.textContent.trim()==='September 25th, 2026')");
+    await setInput('#bank-name', 'Test Bank');
+    await setInput('#account-number', '123456789');
+    await click('Verify invoice');
+    await browser.until("document.querySelector('[role=dialog]')?.innerText.includes('Ready for Payment')");
+    await click('Start processing');
+    await browser.until("document.querySelector('[role=dialog]')?.innerText.includes('Payment Processing')");
+    await setInput('#payment-reference', 'PAY-22');
+    await click('Mark paid & close');
+    await browser.until("__bpTest.records.some(record=>record.claimReference==='PA-2026-013' && record.workflowStatusKey==='PaidClosed')");
+    const paid = await browser.evaluate("__bpTest.records.find(record=>record.claimReference==='PA-2026-013')");
+    assert.equal(paid.claimedAmountMYR, 26500);
+    assert.equal(paid.certifiedAmountMYR, 24000);
+    console.log('PASS: newly created project flows through draft, submission, technical review, approval, and payment closure.');
+    assert.equal(browser.errors.length, 0, JSON.stringify(browser.errors));
+  } finally { browser.close(); fs.rmSync(file, { force: true }); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
